@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { SocialIcon } from "@/components/SocialIcon";
 import { defaultProfile, putFile, saveProfile, useProfile, type MediaKey, type Profile } from "@/lib/profile";
 
 export const Route = createFileRoute("/dashboard")({
@@ -28,7 +29,7 @@ function Dashboard() {
     setTimeout(() => setMsg(""), 3000);
   };
 
-  const Text = ({ k, label }: { k: "name" | "status" | "location" | "songTitle"; label: string }) => (
+  const Text = ({ k, label }: { k: "name" | "location" | "songTitle" | "discordId"; label: string }) => (
     <label className="block space-y-1">
       <span className="text-xs text-muted-foreground">{label}</span>
       <input className="field" defaultValue={p[k]} key={p[k] + k} onBlur={(e) => set(k, e.target.value)} />
@@ -67,8 +68,17 @@ function Dashboard() {
             <div className="flex-1"><Media k="avatar" label="Profile picture" accept="image/*" hint="PNG, JPG, GIF, WEBP" /></div>
           </div>
           <Text k="name" label="Name" />
-          <Text k="status" label="Status" />
-          <Text k="location" label="Location" />
+                    <Text k="location" label="Location" />
+        </section>
+
+        <section className="glass space-y-3 rounded-2xl p-5">
+          <h2 className="font-medium">Discord presence</h2>
+          <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+            <li>Join the free Lanyard server: <a className="underline" href="https://discord.gg/lanyard" target="_blank" rel="noreferrer">discord.gg/lanyard</a> (it reads your live status).</li>
+            <li>In Discord, turn on Developer Mode, right-click your name → Copy User ID.</li>
+            <li>Paste it below and save.</li>
+          </ol>
+          <Text k="discordId" label="Discord user ID" />
         </section>
 
         <section className="glass space-y-4 rounded-2xl p-5">
@@ -93,12 +103,12 @@ function Dashboard() {
           <h2 className="font-medium">Socials</h2>
           {p.socials.map((s, i) => (
             <div key={i} className="flex gap-2">
-              <input className="field w-32" value={s.label} onChange={(e) => set("socials", p.socials.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
-              <input className="field flex-1" value={s.url} onChange={(e) => set("socials", p.socials.map((x, j) => j === i ? { ...x, url: e.target.value } : x))} />
+              <span className="glass flex w-10 items-center justify-center rounded-lg"><SocialIcon url={s.url} className="h-4 w-4" /></span>
+              <input className="field flex-1" placeholder="https://instagram.com/you" value={s.url} onChange={(e) => set("socials", p.socials.map((x, j) => j === i ? { ...x, url: e.target.value } : x))} />
               <button className="px-2 text-muted-foreground hover:text-destructive" onClick={() => set("socials", p.socials.filter((_, j) => j !== i))}>✕</button>
             </div>
           ))}
-          <button className="text-sm text-muted-foreground hover:text-foreground" onClick={() => set("socials", [...p.socials, { label: "New", url: "https://" }])}>+ Add link</button>
+          <button className="text-sm text-muted-foreground hover:text-foreground" onClick={() => set("socials", [...p.socials, { label: "", url: "https://" }])}>+ Add link</button>
         </section>
 
         <div className="flex items-center gap-3">
