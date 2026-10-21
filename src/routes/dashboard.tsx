@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { defaultProfile, saveProfile, useProfile, type Profile } from "@/lib/profile";
+import { defaultProfile, putFile, saveProfile, useProfile, type MediaKey, type Profile } from "@/lib/profile";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -16,8 +16,6 @@ export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
 });
 
-const readFile = (f: File) =>
-  new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(f); });
 
 function Dashboard() {
   const [p, setP] = useProfile();
@@ -37,17 +35,20 @@ function Dashboard() {
     </label>
   );
 
-  const Media = ({ k, label, accept }: { k: "avatar" | "background" | "songCover" | "songUrl"; label: string; accept: string }) => (
+  const Media = ({ k, label, accept, hint }: { k: MediaKey; label: string; accept: string; hint: string }) => (
     <div className="space-y-1">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="flex gap-2">
-        <input className="field flex-1" placeholder="Paste a link…" defaultValue={p[k].startsWith("data:") ? "(uploaded file)" : p[k]} key={k + p[k].length}
-          onBlur={(e) => e.target.value !== "(uploaded file)" && set(k, e.target.value)} />
-        <label className="glass cursor-pointer rounded-lg px-3 py-2 text-sm">
-          Upload
-          <input type="file" accept={accept} hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) set(k, await readFile(f)); }} />
-        </label>
-      </div>
+      <label className="glass flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 text-sm">
+        <span className="text-muted-foreground">{hint}</span>
+        <span>Choose file</span>
+        <input type="file" accept={accept} hidden onChange={async (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          await putFile(k, f);
+          const url = URL.createObjectURL(f);
+          setP((cur) => ({ ...cur, [k]: url, ...(k === "background" ? { bgIsVideo: f.type.startsWith("video") } : {}) }));
+        }} />
+      </label>
     </div>
   );
 
@@ -63,7 +64,7 @@ function Dashboard() {
           <h2 className="font-medium">Profile</h2>
           <div className="flex items-center gap-4">
             <img src={p.avatar} alt="" className="h-16 w-16 rounded-full object-cover" />
-            <div className="flex-1"><Media k="avatar" label="Profile picture" accept="image/*" /></div>
+            <div className="flex-1"><Media k="avatar" label="Profile picture" accept="image/*" hint="PNG, JPG, GIF, WEBP" /></div>
           </div>
           <Text k="name" label="Name" />
           <Text k="status" label="Status" />
@@ -72,15 +73,20 @@ function Dashboard() {
 
         <section className="glass space-y-4 rounded-2xl p-5">
           <h2 className="font-medium">Background</h2>
-          <img src={p.background} alt="" className="h-28 w-full rounded-lg object-cover" />
-          <Media k="background" label="Background image" accept="image/*" />
+          {p.bgIsVideo ? (
+            <video src={p.background} autoPlay muted loop playsInline className="h-28 w-full rounded-lg object-cover" />
+          ) : (
+            <img src={p.background} alt="" className="h-28 w-full rounded-lg object-cover" />
+          )}
+          <Media k="background" label="Background" accept="image/*,video/mp4" hint="Image, GIF or MP4" />
         </section>
 
         <section className="glass space-y-4 rounded-2xl p-5">
           <h2 className="font-medium">Music</h2>
           <Text k="songTitle" label="Song title" />
-          <Media k="songCover" label="Cover art" accept="image/*" />
-          <Media k="songUrl" label="Song file (mp3)" accept="audio/*" />
+          <img src={p.songCover} alt="" className="h-16 w-16 rounded-md object-cover" />
+          <Media k="songCover" label="Cover art" accept="image/*" hint="PNG, JPG, GIF, WEBP" />
+          <Media k="songUrl" label="Song" accept=".mp3,audio/mpeg" hint={p.songUrl ? "Song uploaded ✓" : "MP3 file"} />
         </section>
 
         <section className="glass space-y-3 rounded-2xl p-5">
