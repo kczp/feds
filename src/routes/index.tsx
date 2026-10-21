@@ -56,7 +56,11 @@ function Index() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background text-foreground">
-      <img src={p.background} alt="" className="absolute inset-0 h-full w-full object-cover grayscale" />
+      {p.bgIsVideo ? (
+        <video src={p.background} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover" />
+      ) : (
+        <img src={p.background} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
       <div className="absolute inset-0 bg-background/40" />
       {p.songUrl && <audio ref={audio} src={p.songUrl} loop />}
 
