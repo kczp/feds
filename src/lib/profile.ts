@@ -6,6 +6,7 @@ export type Social = { label: string; url: string };
 export type Profile = {
   name: string;
   status: string;
+  discordId: string;
   location: string;
   avatar: string;
   background: string;
@@ -19,6 +20,7 @@ export type Profile = {
 export const defaultProfile: Profile = {
   name: "wl.b",
   status: "chillin",
+  discordId: "",
   location: "Mayfair",
   avatar: pfp,
   background: bg,
