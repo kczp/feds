@@ -47,7 +47,7 @@ export const profileQuery = queryOptions({
     return { ...defaultProfile, ...(data as Partial<Profile>) } as Profile;
   },
 });
-export const hasServerProfile = (p: Record<string, unknown>) => Object.keys(p).length > 0;
+export const hasServerProfile = (p: object) => Object.keys(p).length > 0;
 
 // ---- One-time migration of the old browser-only profile ----
 const KEY = "bio-profile";

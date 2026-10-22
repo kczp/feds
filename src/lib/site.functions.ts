@@ -33,7 +33,7 @@ export const getSharedProfile = createServerFn({ method: "GET" }).handler(async 
   });
   const { data, error } = await sb.from("site_profile").select("data").eq("id", 1).maybeSingle();
   if (error) console.error(error);
-  return { data: (data?.data ?? {}) as Record<string, unknown> };
+  return { data: (data?.data ?? {}) as Record<string, string | boolean | { label: string; url: string }[]> };
 });
 
 export const getAdminStatus = createServerFn({ method: "GET" }).handler(async () => ({
