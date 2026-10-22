@@ -32,6 +32,6 @@ async function digest(s: string) {
 export async function passwordMatches(input: string, expected: string) {
   const [a, b] = await Promise.all([digest(input), digest(expected)]);
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
   return diff === 0;
 }
