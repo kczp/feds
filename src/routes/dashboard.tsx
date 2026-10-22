@@ -1,7 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { SocialIcon } from "@/components/SocialIcon";
-import { defaultProfile, putFile, saveProfile, useProfile, type MediaKey, type Profile } from "@/lib/profile";
+import {
+  clearLegacyProfile, defaultProfile, hasServerProfile, profileQuery, readLegacyProfile,
+  type MediaKey, type Profile,
+} from "@/lib/profile";
+import { getAdminStatus, getSharedProfile, login, logout, saveSharedProfile, uploadMedia } from "@/lib/site.functions";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -12,21 +18,98 @@ export const Route = createFileRoute("/dashboard")({
       { property: "og:description", content: "Change your name, picture, background, music and socials." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
     ],
   }),
-  component: Dashboard,
+  loader: () => getAdminStatus(),
+  component: DashboardGate,
 });
 
+function DashboardGate() {
+  const { admin } = Route.useLoaderData();
+  return admin ? <Dashboard /> : <Login />;
+}
+
+function Login() {
+  const router = useRouter();
+  const doLogin = useServerFn(login);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+      <form className="glass w-full max-w-sm space-y-4 rounded-2xl p-6" onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true); setErr("");
+        const password = String(new FormData(e.currentTarget).get("password") ?? "");
+        try {
+          const r = await doLogin({ data: { password } });
+          if (r.ok) await router.invalidate(); else setErr("Wrong password");
+        } catch { setErr("Couldn't sign in right now"); }
+        setBusy(false);
+      }}>
+        <h1 className="text-xl font-semibold">Dashboard login</h1>
+        <input name="password" type="password" autoComplete="current-password" placeholder="Password" className="field w-full" autoFocus />
+        {err && <p className="text-sm text-destructive">{err}</p>}
+        <button disabled={busy} className="w-full rounded-lg bg-primary px-5 py-2 font-medium text-primary-foreground">{busy ? "…" : "Enter"}</button>
+        <Link to="/" className="block text-center text-sm text-muted-foreground hover:text-foreground">← Back to page</Link>
+      </form>
+    </main>
+  );
+}
 
 function Dashboard() {
-  const [p, setP] = useProfile();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const save$ = useServerFn(saveSharedProfile);
+  const upload$ = useServerFn(uploadMedia);
+  const logout$ = useServerFn(logout);
+  const getRaw = useServerFn(getSharedProfile);
+  const [p, setP] = useState<Profile | null>(null);
   const [msg, setMsg] = useState("");
+  const [uploading, setUploading] = useState<MediaKey | null>(null);
+  const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 4000); };
+
+  const uploadBlob = async (k: MediaKey, f: Blob, name: string) => {
+    const fd = new FormData();
+    fd.append("kind", k);
+    fd.append("file", f instanceof File ? f : new File([f], name, { type: f.type }));
+    return upload$({ data: fd });
+  };
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await getRaw();
+      let profile: Profile = { ...defaultProfile, ...(data as Partial<Profile>) };
+      // One-time migration of the old browser-saved profile.
+      if (!hasServerProfile(data)) {
+        const legacy = await readLegacyProfile();
+        if (legacy) {
+          try {
+            profile = { ...profile, ...legacy.profile };
+            for (const [k, b] of Object.entries(legacy.files) as [MediaKey, Blob][]) {
+              const r = await uploadBlob(k, b, `${k}.${(b.type.split("/")[1] || "bin").replace("mpeg", "mp3")}`);
+              profile = { ...profile, [k]: r.url, ...(k === "background" ? { bgIsVideo: r.isVideo } : {}) };
+            }
+            await save$({ data: profile });
+            clearLegacyProfile();
+            qc.invalidateQueries({ queryKey: profileQuery.queryKey });
+            flash("Imported your old profile");
+          } catch { flash("Couldn't import your old profile"); }
+        }
+      }
+      setP(profile);
+    })();
+  }, []);
+
+  if (!p) return <main className="min-h-screen bg-background" />;
   const set = <K extends keyof Profile>(k: K, v: Profile[K]) => setP({ ...p, [k]: v });
 
-  const save = () => {
-    try { saveProfile(p); setMsg("Saved!"); }
-    catch { setMsg("Too big to save — try a smaller file or paste a link instead."); }
-    setTimeout(() => setMsg(""), 3000);
+  const save = async () => {
+    try {
+      await save$({ data: p });
+      await qc.invalidateQueries({ queryKey: profileQuery.queryKey });
+      flash("Saved! Everyone sees it now.");
+    } catch (e) { flash(e instanceof Error && e.message === "Unauthorized" ? "Session expired — log in again." : "Couldn't save."); }
   };
 
   const Text = ({ k, label }: { k: "name" | "location" | "songTitle" | "discordId"; label: string }) => (
@@ -40,14 +123,18 @@ function Dashboard() {
     <div className="space-y-1">
       <span className="text-xs text-muted-foreground">{label}</span>
       <label className="glass flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 text-sm">
-        <span className="text-muted-foreground">{hint}</span>
+        <span className="text-muted-foreground">{uploading === k ? "Uploading…" : hint}</span>
         <span>Choose file</span>
-        <input type="file" accept={accept} hidden onChange={async (e) => {
+        <input type="file" accept={accept} hidden disabled={!!uploading} onChange={async (e) => {
           const f = e.target.files?.[0];
           if (!f) return;
-          await putFile(k, f);
-          const url = URL.createObjectURL(f);
-          setP((cur) => ({ ...cur, [k]: url, ...(k === "background" ? { bgIsVideo: f.type.startsWith("video") } : {}) }));
+          setUploading(k);
+          try {
+            const r = await uploadBlob(k, f, f.name);
+            setP((cur) => cur && ({ ...cur, [k]: r.url, ...(k === "background" ? { bgIsVideo: r.isVideo } : {}) }));
+            flash("Uploaded — press Save to publish");
+          } catch (err) { flash(err instanceof Error ? err.message : "Upload failed"); }
+          setUploading(null);
         }} />
       </label>
     </div>
@@ -58,7 +145,10 @@ function Dashboard() {
       <div className="mx-auto max-w-xl space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">View page →</Link>
+          <div className="flex items-center gap-4">
+            <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">View page →</Link>
+            <button className="text-sm text-muted-foreground hover:text-foreground" onClick={async () => { await logout$(); await router.invalidate(); }}>Log out</button>
+          </div>
         </div>
 
         <section className="glass space-y-4 rounded-2xl p-5">
@@ -68,7 +158,7 @@ function Dashboard() {
             <div className="flex-1"><Media k="avatar" label="Profile picture" accept="image/*" hint="PNG, JPG, GIF, WEBP" /></div>
           </div>
           <Text k="name" label="Name" />
-                    <Text k="location" label="Location" />
+          <Text k="location" label="Location" />
         </section>
 
         <section className="glass space-y-3 rounded-2xl p-5">
@@ -112,7 +202,7 @@ function Dashboard() {
         </section>
 
         <div className="flex items-center gap-3">
-          <button onClick={save} className="rounded-lg bg-primary px-5 py-2 font-medium text-primary-foreground">Save</button>
+          <button onClick={save} disabled={!!uploading} className="rounded-lg bg-primary px-5 py-2 font-medium text-primary-foreground">Save</button>
           <button onClick={() => setP(defaultProfile)} className="text-sm text-muted-foreground">Reset</button>
           <span className="text-sm">{msg}</span>
         </div>
