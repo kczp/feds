@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Eye, MapPin, Pause, Play, Settings, Volume2, VolumeX } from "lucide-react";
-import { useProfile, useViews } from "@/lib/profile";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { profileQuery, useViews } from "@/lib/profile";
 import { SocialIcon } from "@/components/SocialIcon";
 import { DiscordPresence } from "@/components/DiscordPresence";
 
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  loader: ({ context }) => context.queryClient.ensureQueryData(profileQuery),
   component: Index,
 });
 
@@ -80,7 +82,7 @@ function Player({ audio, title, cover, playing, onToggle }: {
 }
 
 function Index() {
-  const [p] = useProfile();
+  const { data: p } = useSuspenseQuery(profileQuery);
   const views = useViews();
   const [entered, setEntered] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { queryOptions } from "@tanstack/react-query";
 import bg from "@/assets/bg.jpg";
 import pfp from "@/assets/pfp.jpg";
+import { getSharedProfile } from "./site.functions";
 
 export type Social = { label: string; url: string };
 export type Profile = {
@@ -34,20 +36,22 @@ export const defaultProfile: Profile = {
   ],
 };
 
-const KEY = "bio-profile";
-
-export function loadProfile(): Profile {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return { ...defaultProfile, ...JSON.parse(raw) };
-  } catch {}
-  return defaultProfile;
-}
-
 export const MEDIA = ["avatar", "background", "songCover", "songUrl"] as const;
 export type MediaKey = (typeof MEDIA)[number];
 
-function db() {
+// Shared profile from the server — the single source of truth.
+export const profileQuery = queryOptions({
+  queryKey: ["shared-profile"],
+  queryFn: async () => {
+    const { data } = await getSharedProfile();
+    return { ...defaultProfile, ...(data as Partial<Profile>) } as Profile;
+  },
+});
+export const hasServerProfile = (p: Record<string, unknown>) => Object.keys(p).length > 0;
+
+// ---- One-time migration of the old browser-only profile ----
+const KEY = "bio-profile";
+function idb() {
   return new Promise<IDBDatabase>((res, rej) => {
     const r = indexedDB.open("bio-media", 1);
     r.onupgradeneeded = () => r.result.createObjectStore("files");
@@ -55,44 +59,33 @@ function db() {
     r.onerror = () => rej(r.error);
   });
 }
-export async function putFile(k: string, f: Blob) {
-  const d = await db();
-  await new Promise((res, rej) => {
-    const t = d.transaction("files", "readwrite");
-    t.objectStore("files").put(f, k);
-    t.oncomplete = res; t.onerror = () => rej(t.error);
-  });
-}
-async function getFile(k: string): Promise<Blob | undefined> {
-  const d = await db();
+async function getLegacyFile(k: string): Promise<Blob | undefined> {
+  const d = await idb();
   return new Promise((res) => {
     const r = d.transaction("files").objectStore("files").get(k);
     r.onsuccess = () => res(r.result); r.onerror = () => res(undefined);
   });
 }
-
-// Uploaded files live in IndexedDB; profile fields store "idb:<key>".
-export function saveProfile(p: Profile) {
-  const out = { ...p };
-  for (const k of MEDIA) if (out[k].startsWith("blob:")) out[k] = "idb:" + k;
-  localStorage.setItem(KEY, JSON.stringify(out));
+export async function readLegacyProfile(): Promise<{ profile: Partial<Profile>; files: Partial<Record<MediaKey, Blob>> } | null> {
+  const raw = localStorage.getItem(KEY);
+  if (!raw) return null;
+  try {
+    const profile = JSON.parse(raw) as Partial<Profile>;
+    const files: Partial<Record<MediaKey, Blob>> = {};
+    for (const k of MEDIA) {
+      const v = profile[k];
+      if (typeof v === "string" && v.startsWith("idb:")) {
+        delete profile[k];
+        const b = await getLegacyFile(k).catch(() => undefined);
+        if (b) files[k] = b;
+      } else if (typeof v === "string" && v.startsWith("blob:")) delete profile[k];
+    }
+    return { profile, files };
+  } catch { return null; }
 }
-
-export function useProfile() {
-  const [profile, setProfile] = useState<Profile>(defaultProfile);
-  useEffect(() => {
-    (async () => {
-      const p = loadProfile();
-      for (const k of MEDIA) {
-        if (p[k].startsWith("idb:")) {
-          const b = await getFile(k);
-          p[k] = b ? URL.createObjectURL(b) : defaultProfile[k];
-        }
-      }
-      setProfile(p);
-    })();
-  }, []);
-  return [profile, setProfile] as const;
+export function clearLegacyProfile() {
+  localStorage.removeItem(KEY);
+  try { indexedDB.deleteDatabase("bio-media"); } catch {}
 }
 
 export function useViews() {
