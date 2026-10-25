@@ -9,7 +9,9 @@ function config() {
     password,
     name: "bio-admin",
     maxAge: 60 * 60 * 24 * 7, // 7 days
-    cookie: { httpOnly: true, secure: true, sameSite: "lax" as const, path: "/" },
+    // SameSite=None + Partitioned so the cookie survives inside the editor's
+    // preview iframe (third-party context); CSRF middleware guards server fns.
+    cookie: { httpOnly: true, secure: true, sameSite: "none" as const, partitioned: true, path: "/" },
   };
 }
 

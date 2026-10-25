@@ -14,3 +14,4 @@
 - Admin auth is a shared password (`ADMIN_PASSWORD`) checked server-side with an encrypted HTTP-only session cookie (`SESSION_SECRET`); no user accounts exist.
 - Media lives in the private `media` bucket (workspace blocks public buckets) and is served through `/api/public/media/*` with range support for audio/video seeking.
 - localStorage/IndexedDB are only read once for migrating the legacy profile, then cleared.
+- The admin session cookie is SameSite=None + Partitioned so it persists inside the editor preview iframe (third-party context); CSRF middleware protects server functions.
