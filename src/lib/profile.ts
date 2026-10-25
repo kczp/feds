@@ -17,7 +17,19 @@ export type Profile = {
   songCover: string;
   songUrl: string;
   socials: Social[];
+  intro: string;
+  username: string;
+  bio: string;
+  languages: string;
+  uid: string;
+  badges: string;
+  accent: string;
+  cardOpacity: number;
+  setupCompact: boolean;
+  setup: SetupItem[];
 };
+export type SetupItem = { category: string; name: string; brand: string; link: string; hidden?: boolean };
+export const SETUP_CATEGORIES = ["Mouse","Keyboard","Monitor","Headset","Microphone","Controller","PC","CPU","GPU","Motherboard","RAM","Storage","Mousepad","Webcam","Other"];
 
 export const defaultProfile: Profile = {
   name: "wl.b",
@@ -33,6 +45,21 @@ export const defaultProfile: Profile = {
     { label: "Instagram", url: "https://instagram.com" },
     { label: "TikTok", url: "https://tiktok.com" },
     { label: "Discord", url: "https://discord.com" },
+  ],
+  intro: "go to sleep . . .",
+  username: "wlb",
+  bio: "just vibing",
+  languages: "English",
+  uid: "1",
+  badges: "Owner",
+  accent: "#ffffff",
+  cardOpacity: 45,
+  setupCompact: false,
+  setup: [
+    { category: "Mouse", name: "Viper V3 Pro", brand: "Razer", link: "" },
+    { category: "Keyboard", name: "Wooting 60HE", brand: "Wooting", link: "" },
+    { category: "Monitor", name: "XL2566K", brand: "BenQ Zowie", link: "" },
+    { category: "Headset", name: "Cloud III", brand: "HyperX", link: "" },
   ],
 };
 

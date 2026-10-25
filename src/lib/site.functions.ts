@@ -16,6 +16,19 @@ const profileSchema = z.object({
   songCover: z.string().max(1000),
   songUrl: z.string().max(1000),
   socials: z.array(z.object({ label: z.string().max(100), url: z.string().max(1000) })).max(30),
+  intro: z.string().max(200),
+  username: z.string().max(50),
+  bio: z.string().max(500),
+  languages: z.string().max(200),
+  uid: z.string().max(30),
+  badges: z.string().max(300),
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  cardOpacity: z.number().min(0).max(100),
+  setupCompact: z.boolean(),
+  setup: z.array(z.object({
+    category: z.string().max(50), name: z.string().max(100), brand: z.string().max(100),
+    link: z.string().max(1000), hidden: z.boolean().optional(),
+  })).max(50),
 });
 
 export const getSharedProfile = createServerFn({ method: "GET" }).handler(async () => {
