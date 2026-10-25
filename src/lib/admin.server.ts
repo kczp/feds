@@ -19,6 +19,8 @@ export const adminSession = () => useSession<AdminSession>(config());
 
 export async function isAdmin() {
   const s = await adminSession();
+  const { getRequest } = await import("@tanstack/react-start/server");
+  console.log("[DBG] cookie names:", (getRequest()?.headers.get("cookie") ?? "").split(";").map((c) => c.split("=")[0]), "data:", JSON.stringify(s.data));
   return s.data.admin === true;
 }
 
