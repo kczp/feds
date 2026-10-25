@@ -38,6 +38,7 @@ export const getSharedProfile = createServerFn({ method: "GET" }).handler(async 
 
 export const getAdminStatus = createServerFn({ method: "GET" }).handler(async () => ({
   admin: await isAdmin(),
+  dbg: (globalThis as any).__dbg,
 }));
 
 export const login = createServerFn({ method: "POST" })
